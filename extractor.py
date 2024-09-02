@@ -1,46 +1,66 @@
 import os
 import csv
 import pdfplumber
+import PyPDF2
 import time
 from datetime import timedelta
 
-# Function to extract articles from the PDF
-def extract_articles(pdf):
+
+
+# Function to extract titles from the PDF document outline
+def extract_titles(pdf):
+    with open(pdf, "rb") as file:
+        reader = PyPDF2.PdfReader(file)
+        titles = [item.title for item in reader.outline if isinstance(item, PyPDF2.generic.Destination)]
+
+    print(f"Extracted {len(titles)} titles from the document outline")
+    return titles
+
+import re
+
+def extract_articles(pdf, titles):
     # Open the PDF file
     with pdfplumber.open(pdf) as pdf:
         full_text = ""
-        
         # Extract all text from the PDF and concatenate into one large string
         for page in pdf.pages:
             full_text += page.extract_text() + "\n"  # Add newline to separate pages
 
-    # Split the text into lines
-    lines = full_text.splitlines()
-
     articles = []
-    current_title = None
-    current_text = []
-    collecting_text = False
+    for title in titles:
+        # Create a regex pattern that matches the title ignoring newlines
+        # We escape special regex characters in the title and replace spaces with \s+
+        escaped_title = re.escape(title).replace(r"\ ", r"\s+")
+        title_pattern = re.compile(escaped_title, re.DOTALL)
+        
+        # Find the start index of the current title
+        title_match = title_pattern.search(full_text)
+        if not title_match:
+            continue  # Title not found, skip to next title
 
-    for i, line in enumerate(lines):
-        if "OpenURL Link" in line:
-            if i >= 4:  # Ensure there are at least 4 lines before "OpenURL Link"
-                current_title = lines[i - 4].strip()  # Get the title
+        title_start = title_match.start()
 
-            # Start collecting text
-            current_text = []
-            collecting_text = True
+        # Find the start of the article body (after "OpenURL Link")
+        body_start = full_text.find("OpenURL Link", title_start)
+        if body_start == -1:
+            continue  # "OpenURL Link" not found, skip to next title
+        body_start = full_text.find("\n", body_start) + 1  # Move to the next line
 
-        elif "Copyright (c)" in line:
-            # Stop collecting text when "Copyright (c)" is found
-            collecting_text = False
-            if current_title and current_text:
-                articles.append((current_title, ' '.join(current_text).strip()))
-            current_title = None
-            current_text = []
+        # Find the end of the article body (at "Copyright" or "Copyright (c)")
+        copyright_index = full_text.find("Copyright,", body_start)
+        copyright_c_index = full_text.find("Copyright (c)", body_start)
+        body_end = min(copyright_index, copyright_c_index) if copyright_index != -1 and copyright_c_index != -1 else max(copyright_index, copyright_c_index)
+        
+        if body_end == -1:
+            continue  # Copyright not found, skip to next title
 
-        elif collecting_text:
-            current_text.append(line.strip())
+        # Extract the article body
+        article_body = full_text[body_start:body_end].strip()
+
+        # Add the article to our list
+        if article_body:
+            print(f"Extracted article: {title}")
+            articles.append((title, article_body))
 
     return articles
 
@@ -67,14 +87,37 @@ def main():
             # Add the PDF file to the PDFS array
             PDFS.append(file)
 
-    # Print the PDFs
-    print(f"PDF files found: {PDFS}")
+
+    #find the two single number characters in the file name
+    numbers_and_pdfs = []
+    for pdf in PDFS:
+        split_pdf = list(pdf)
+        num1, num2 = None, None
+        for i in range(len(split_pdf)):
+            if split_pdf[i].isdigit():
+                if num1 is None:
+                    num1 = split_pdf[i]
+                else:
+                    num2 = split_pdf[i]
+                    break
+
+        # print(f"PDF file: {pdf}, Number 1: {num1}, Number 2: {num2}")
+
+        numbers_and_pdfs.append((num1, num2, pdf))
+
+    #sort the list of tuples by num2, then by num1
+    numbers_and_pdfs.sort(key=lambda x: (x[1], x[0]))
+
+    print('Found the following PDF files:')
+    for pdf in numbers_and_pdfs:
+        print('Part:', pdf[1] + ' | Bundle: ' + pdf[0] + ' | Filename:', pdf[2])
 
     # For each PDF file, open it and extract articles
-    for pdf in PDFS:
-        extracted_articles = extract_articles(pdf)
+    for pdf in numbers_and_pdfs:
+        titles = extract_titles(pdf[2])
+        extracted_articles = extract_articles(pdf[2], titles)
         articles.extend(extracted_articles)
-        print(f"Extracted {len(extracted_articles)} articles from {pdf}")
+        print(f"Extracted {len(extracted_articles)} articles from {pdf[2]}")
 
     # Write all articles to a CSV file
     write_to_csv(articles)
