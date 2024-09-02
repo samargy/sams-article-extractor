@@ -49,7 +49,9 @@ def extract_articles(pdf, titles):
         # Find the end of the article body (at "Copyright" or "Copyright (c)")
         copyright_index = full_text.find("Copyright,", body_start)
         copyright_c_index = full_text.find("Copyright (c)", body_start)
-        body_end = min(copyright_index, copyright_c_index) if copyright_index != -1 and copyright_c_index != -1 else max(copyright_index, copyright_c_index)
+        copyright_c_c_index = full_text.find("©", body_start)
+        copyright_c_c_c_index = full_text.find("Copyright©", body_start)
+        body_end = min(index for index in [copyright_index, copyright_c_index, copyright_c_c_index, copyright_c_c_c_index] if index > 0)
         
         if body_end == -1:
             continue  # Copyright not found, skip to next title
