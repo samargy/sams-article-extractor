@@ -40,22 +40,25 @@ The format you should output your response should be in JSON format.
   
     user_prompt = f"Title: {title}\nText: {text}"
 
-    response = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        temperature=0.1,
-        max_completion_tokens=50  # Added this line
-    )
-
     try:
-        result = json.loads(response.choices[0].message.content)
-        return result['headline'], result['text'], response.choices[0].message.content
-    except json.JSONDecodeError:
-        # If JSON parsing fails, return the raw output
-        return None, None, response.choices[0].message.content
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.1,
+            max_tokens=50
+        )
+
+        content = response.choices[0].message.content
+        try:
+            result = json.loads(content)
+            return result.get('headline'), result.get('text'), None
+        except json.JSONDecodeError:
+            return None, None, content
+    except Exception as e:
+        return None, None, f"Error: {str(e)}"
 
 def process_csv(input_file, writer):
     with open(input_file, 'r', newline='', encoding='utf-8') as infile:
