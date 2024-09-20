@@ -37,7 +37,7 @@ The format you should output your response should be in JSON format.
 'headline': bias_value,
 'text': bias_value,
 }"""
-
+  
     user_prompt = f"Title: {title}\nText: {text}"
 
     response = openai.chat.completions.create(
@@ -50,8 +50,12 @@ The format you should output your response should be in JSON format.
         max_completion_tokens=50  # Added this line
     )
 
-    result = json.loads(response.choices[0].message.content)
-    return result['headline'], result['text']
+    try:
+        result = json.loads(response.choices[0].message.content)
+        return result['headline'], result['text'], response.choices[0].message.content
+    except json.JSONDecodeError:
+        # If JSON parsing fails, return the raw output
+        return None, None, response.choices[0].message.content
 
 def process_csv(input_file, writer):
     with open(input_file, 'r', newline='', encoding='utf-8') as infile:
@@ -60,17 +64,18 @@ def process_csv(input_file, writer):
             title = row['Title']
             text = row['Text']
             
-            title_bias, text_bias = classify_bias(title, text)
+            title_bias, text_bias, raw_output = classify_bias(title, text)
             
             row['title_bias'] = title_bias
             row['text_bias'] = text_bias
+            row['raw'] = raw_output
             
             writer.writerow(row)
             print(f"Processed: {title}")
 
 def process_directory(input_dir, output_file):
     with open(output_file, 'w', newline='', encoding='utf-8') as outfile:
-        fieldnames = ['Title', 'Text', 'title_bias', 'text_bias']
+        fieldnames = ['Title', 'Text', 'title_bias', 'text_bias', 'raw']
         writer = csv.DictWriter(outfile, fieldnames=fieldnames)
         writer.writeheader()
 
