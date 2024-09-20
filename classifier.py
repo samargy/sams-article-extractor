@@ -56,6 +56,7 @@ The format you should output your response should be in JSON format.
             result = json.loads(content)
             return result.get('headline'), result.get('text'), None
         except json.JSONDecodeError:
+            print(f"The output wasn't correct for the article: {title}. Unable to decode JSON response.")
             return None, None, content
     except Exception as e:
         return None, None, f"Error: {str(e)}"
