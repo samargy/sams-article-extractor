@@ -1,6 +1,7 @@
 import csv
 import json
 import openai
+import os
 
 # Set your OpenAI API key here
 openai.api_key = ""
@@ -52,15 +53,9 @@ The format you should output your response should be in JSON format.
     result = json.loads(response.choices[0].message.content)
     return result['headline'], result['text']
 
-def process_csv(input_file, output_file):
-    with open(input_file, 'r', newline='', encoding='utf-8') as infile, \
-         open(output_file, 'w', newline='', encoding='utf-8') as outfile:
-        
+def process_csv(input_file, writer):
+    with open(input_file, 'r', newline='', encoding='utf-8') as infile:
         reader = csv.DictReader(infile)
-        fieldnames = reader.fieldnames + ['title_bias', 'text_bias']
-        writer = csv.DictWriter(outfile, fieldnames=fieldnames)
-        writer.writeheader()
-
         for row in reader:
             title = row['Title']
             text = row['Text']
@@ -73,8 +68,24 @@ def process_csv(input_file, output_file):
             writer.writerow(row)
             print(f"Processed: {title}")
 
+def process_directory(input_dir, output_file):
+    with open(output_file, 'w', newline='', encoding='utf-8') as outfile:
+        fieldnames = ['Title', 'Text', 'title_bias', 'text_bias']
+        writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for filename in os.listdir(input_dir):
+            if filename.endswith('.csv'):
+                input_path = os.path.join(input_dir, filename)
+                process_csv(input_path, writer)
+                print(f"Processed file: {filename}")
+
 if __name__ == "__main__":
-    input_file = "articles.csv"
-    output_file = "articles_with_bias.csv"
-    process_csv(input_file, output_file)
-    print("Processing complete. Results saved in articles_with_bias.csv")
+    input_directory = input("Enter the name of the input directory: ")
+    output_file = f"output_{input_directory}_with_bias.csv"
+    
+    if not os.path.exists(input_directory):
+        print(f"Error: The directory '{input_directory}' does not exist.")
+    else:
+        process_directory(input_directory, output_file)
+        print(f"Processing complete. Results saved in {output_file}")
